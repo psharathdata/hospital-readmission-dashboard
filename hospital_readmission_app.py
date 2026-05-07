@@ -290,7 +290,7 @@ elif page == "📊 EDA Analysis":
                               font_color="#e0e2f0", coloraxis_showscale=False,
                               height=400, title_font_size=13)
             fig.update_traces(textposition="outside")
-            st.plotly_chart(fig, width="stretch"))
+            st.plotly_chart(fig, width="stretch")
             st.markdown("""<div class="insight-box">
             Circulatory (heart) and respiratory patients have the highest
             readmission rates — and the highest treatment costs per episode.
