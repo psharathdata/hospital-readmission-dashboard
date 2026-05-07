@@ -108,33 +108,52 @@ def load_data():
 
 @st.cache_resource
 def train_model(df):
+
     df_ml = df.copy()
+
     cat_c = df_ml.select_dtypes(include="object").columns.tolist()
+
     for c in ["readmitted"]:
-        if c in cat_c: cat_c.remove(c)
+        if c in cat_c:
+            cat_c.remove(c)
+
     for c in cat_c:
         df_ml[c] = LabelEncoder().fit_transform(df_ml[c].astype(str))
-    drop = ["readmitted","DiagCategory","LOS_Band"]
+
+    drop = ["readmitted", "DiagCategory", "LOS_Band"]
     df_ml.drop(columns=drop, errors="ignore", inplace=True)
+
     X = df_ml.drop(columns=["Readmitted30"])
     y = df_ml["Readmitted30"]
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2,
-                                                random_state=42, stratify=y)
+
+    X_tr, X_te, y_tr, y_te = train_test_split(
+        X, y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y
+    )
+
     X_sm, y_sm = SMOTE(random_state=42).fit_resample(X_tr, y_tr)
 
-model = XGBClassifier(
-    n_estimators=200,
-    max_depth=5,
-    learning_rate=0.05,
-    eval_metric="logloss",
-    random_state=42,
-    n_jobs=-1
-)
+    model = XGBClassifier(
+        n_estimators=200,
+        max_depth=5,
+        learning_rate=0.05,
+        eval_metric="logloss",
+        random_state=42,
+        n_jobs=-1
+    )
 
-model.fit(X_sm, y_sm)
-probs = model.predict_proba(X)[:, 1]
-auc = roc_auc_score(y_te, model.predict_proba(X_te)[:, 1])
-return model, X, y, auc, X.columns.tolist(), probs
+    model.fit(X_sm, y_sm)
+
+    probs = model.predict_proba(X)[:, 1]
+
+    auc = roc_auc_score(
+        y_te,
+        model.predict_proba(X_te)[:, 1]
+    )
+
+    return model, X, y, auc, X.columns.tolist(), probsns.tolist(), probs
 
 def align_features_for_model(X, feature_names):
     """Keep prediction/SHAP input exactly same as training columns.
