@@ -151,6 +151,7 @@ with st.sidebar:
         "📊 EDA Analysis",
         "🤖 ML Model",
         "🚨 Patient Risk",
+        "🧑‍⚕️ Predict Patient",
         "💰 ROI Calculator",
     ], label_visibility="collapsed")
     st.markdown("---")
@@ -592,9 +593,105 @@ elif page == "🚨 Patient Risk":
     st.download_button("⬇️ Download High Risk Patient List",
                         csv, "high_risk_patients.csv", "text/csv")
 
+# ══════════════════════════════════════════════════════════════
+#  PAGE 5 — SINGLE PATIENT PREDICTION
+# ══════════════════════════════════════════════════════════════
+elif page == "🧑‍⚕️ Predict Patient":
+    st.markdown("# 🧑‍⚕️ Single Patient Readmission Prediction")
+    st.markdown("*Enter patient details and predict 30-day readmission risk*")
+    st.markdown("---")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        age = st.selectbox("Age Group", sorted(df["age"].unique().tolist()), index=7)
+        time_in_hospital = st.slider("Time in Hospital", 1, 14, 5)
+        num_lab_procedures = st.slider("Lab Procedures", 1, 130, 45)
+
+    with c2:
+        num_procedures = st.slider("Number of Procedures", 0, 6, 1)
+        num_medications = st.slider("Number of Medications", 1, 80, 16)
+        number_inpatient = st.slider("Previous Inpatient Visits", 0, 20, 2)
+
+    with c3:
+        number_outpatient = st.slider("Outpatient Visits", 0, 40, 0)
+        number_emergency = st.slider("Emergency Visits", 0, 40, 0)
+        diag_choice = st.selectbox(
+            "Primary Diagnosis",
+            ["Circulatory / Heart", "Respiratory", "Diabetes", "Digestive", "Cancer", "Other"]
+        )
+
+    diag_map = {
+        "Circulatory / Heart": "410",
+        "Respiratory": "486",
+        "Diabetes": "250",
+        "Digestive": "530",
+        "Cancer": "174",
+        "Other": "780"
+    }
+
+    if st.button("🔮 Predict Readmission Risk", use_container_width=True):
+        input_row = df.drop(columns=["RiskScore", "RiskFlag"], errors="ignore").mode().iloc[0].copy()
+
+        input_row["age"] = age
+        input_row["time_in_hospital"] = time_in_hospital
+        input_row["num_lab_procedures"] = num_lab_procedures
+        input_row["num_procedures"] = num_procedures
+        input_row["num_medications"] = num_medications
+        input_row["number_inpatient"] = number_inpatient
+        input_row["number_outpatient"] = number_outpatient
+        input_row["number_emergency"] = number_emergency
+        input_row["diag_1"] = diag_map[diag_choice]
+        input_row["DiagCategory"] = map_diagnosis(input_row["diag_1"])
+        input_row["age_numeric"] = int(age.split("-")[0].replace("[", ""))
+        input_row["Readmitted30"] = 0
+        input_row["readmitted"] = "NO"
+
+        temp_df = pd.concat(
+            [df.drop(columns=["RiskScore", "RiskFlag"], errors="ignore"), pd.DataFrame([input_row])],
+            ignore_index=True
+        )
+
+        cat_cols = temp_df.select_dtypes(include="object").columns.tolist()
+        if "readmitted" in cat_cols:
+            cat_cols.remove("readmitted")
+
+        for col in cat_cols:
+            temp_df[col] = LabelEncoder().fit_transform(temp_df[col].astype(str))
+
+        temp_df.drop(columns=["readmitted", "DiagCategory", "LOS_Band"], errors="ignore", inplace=True)
+
+        patient_X = temp_df.drop(columns=["Readmitted30"]).tail(1)
+        patient_X = align_features_for_model(patient_X, feat_names)
+
+        risk_prob = model.predict_proba(patient_X)[0, 1]
+        risk_score = round(risk_prob * 100, 1)
+
+        if risk_score >= 60:
+            risk_label = "🔴 High Risk"
+            action = "Assign case manager, schedule 7-day follow-up, medication review."
+        elif risk_score >= 30:
+            risk_label = "🟠 Medium Risk"
+            action = "Monitor closely, provide discharge instructions, follow-up call."
+        else:
+            risk_label = "🟢 Low Risk"
+            action = "Standard discharge process."
+
+        st.markdown("---")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Readmission Risk Score", f"{risk_score}%")
+        c2.metric("Risk Category", risk_label)
+        c3.metric("Model Used", "XGBoost")
+
+        st.markdown(f"""
+        <div class="insight-box">
+        <b>Recommended Clinical Action:</b><br>
+        {action}
+        </div>
+        """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
-#  PAGE 5 — ROI CALCULATOR
+#  PAGE 6 — ROI CALCULATOR
 # ══════════════════════════════════════════════════════════════
 elif page == "💰 ROI Calculator":
     st.markdown("# 💰 ROI & Cost Impact Calculator")
