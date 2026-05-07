@@ -121,13 +121,20 @@ def train_model(df):
     X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2,
                                                 random_state=42, stratify=y)
     X_sm, y_sm = SMOTE(random_state=42).fit_resample(X_tr, y_tr)
-    model = XGBClassifier(n_estimators=200, max_depth=5, learning_rate=0.05,
-                           use_label_encoder=False, eval_metric="logloss",
-                           random_state=42, n_jobs=-1)
-    model.fit(X_sm, y_sm)
-    probs = model.predict_proba(X)[:,1]
-    auc   = roc_auc_score(y_te, model.predict_proba(X_te)[:,1])
-    return model, X, y, auc, X.columns.tolist(), probs
+
+model = XGBClassifier(
+    n_estimators=200,
+    max_depth=5,
+    learning_rate=0.05,
+    eval_metric="logloss",
+    random_state=42,
+    n_jobs=-1
+)
+
+model.fit(X_sm, y_sm)
+probs = model.predict_proba(X)[:, 1]
+auc = roc_auc_score(y_te, model.predict_proba(X_te)[:, 1])
+return model, X, y, auc, X.columns.tolist(), probs
 
 def align_features_for_model(X, feature_names):
     """Keep prediction/SHAP input exactly same as training columns.
