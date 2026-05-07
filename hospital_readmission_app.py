@@ -146,14 +146,14 @@ def train_model(df):
 
     model.fit(X_sm, y_sm)
 
-    probs = model.predict_proba(X)[:, 1]
+probs = model.predict_proba(X)[:, 1]
 
-    auc = roc_auc_score(
-        y_te,
-        model.predict_proba(X_te)[:, 1]
-    )
+auc = roc_auc_score(
+    y_te,
+    model.predict_proba(X_te)[:, 1]
+)
 
-    return model, X, y, auc, X.columns.tolist(), probsns.tolist(), probs
+return model, X, y, auc, X.columns.tolist(), probs
 
 def align_features_for_model(X, feature_names):
     """Keep prediction/SHAP input exactly same as training columns.
