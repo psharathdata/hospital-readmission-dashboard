@@ -217,7 +217,7 @@ if page == "🏠 Overview":
                      hole=0.5, title="Readmission Overview")
         fig.update_layout(paper_bgcolor="#0f1117", font_color="#e0e2f0",
                           margin=dict(t=40,b=10,l=10,r=10), height=300)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with c2:
         age_stats = (df.groupby("age")["Readmitted30"]
@@ -289,7 +289,7 @@ elif page == "📊 EDA Analysis":
                               font_color="#e0e2f0", coloraxis_showscale=False,
                               height=400, title_font_size=13)
             fig.update_traces(textposition="outside")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch"))
             st.markdown("""<div class="insight-box">
             Circulatory (heart) and respiratory patients have the highest
             readmission rates — and the highest treatment costs per episode.
