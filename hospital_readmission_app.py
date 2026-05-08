@@ -108,51 +108,25 @@ def load_data():
 
 @st.cache_resource
 def train_model(df):
-
     df_ml = df.copy()
-
     cat_c = df_ml.select_dtypes(include="object").columns.tolist()
-
     for c in ["readmitted"]:
-        if c in cat_c:
-            cat_c.remove(c)
-
+        if c in cat_c: cat_c.remove(c)
     for c in cat_c:
         df_ml[c] = LabelEncoder().fit_transform(df_ml[c].astype(str))
-
-    drop = ["readmitted", "DiagCategory", "LOS_Band"]
+    drop = ["readmitted","DiagCategory","LOS_Band"]
     df_ml.drop(columns=drop, errors="ignore", inplace=True)
-
     X = df_ml.drop(columns=["Readmitted30"])
     y = df_ml["Readmitted30"]
-
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y
-    )
-
+    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2,
+                                                random_state=42, stratify=y)
     X_sm, y_sm = SMOTE(random_state=42).fit_resample(X_tr, y_tr)
-
-    model = XGBClassifier(
-        n_estimators=200,
-        max_depth=5,
-        learning_rate=0.05,
-        eval_metric="logloss",
-        random_state=42,
-        n_jobs=-1
-    )
-
+    model = XGBClassifier(n_estimators=200, max_depth=5, learning_rate=0.05,
+                           eval_metric="logloss",
+                           random_state=42, n_jobs=-1)
     model.fit(X_sm, y_sm)
-
-    probs = model.predict_proba(X)[:, 1]
-
-    auc = roc_auc_score(
-        y_te,
-        model.predict_proba(X_te)[:, 1]
-    )
-
+    probs = model.predict_proba(X)[:,1]
+    auc   = roc_auc_score(y_te, model.predict_proba(X_te)[:,1])
     return model, X, y, auc, X.columns.tolist(), probs
 
 def align_features_for_model(X, feature_names):
@@ -170,8 +144,16 @@ def align_features_for_model(X, feature_names):
 
 # ── SIDEBAR ───────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🏥 Hospital Readmission\n### Analytics Dashboard")
+    st.markdown("""
+    <div style="text-align:center; padding:14px;">
+        <div style="font-size:42px;">🏥</div>
+        <h2 style="color:white; margin-bottom:0;">Readmission AI</h2>
+        <p style="color:#888aaa; font-size:13px;">Healthcare ML Dashboard</p>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("---")
+
     page = st.radio("Navigate", [
         "🏠 Overview",
         "📊 EDA Analysis",
@@ -180,12 +162,18 @@ with st.sidebar:
         "🧑‍⚕️ Predict Patient",
         "💰 ROI Calculator",
     ], label_visibility="collapsed")
+
     st.markdown("---")
+
     st.markdown("""
-    **Dataset:** Diabetes 130-US Hospitals
-    **Records:** 101,766 patients
-    **Tools:** Python · XGBoost · SHAP
-    """)
+    <div style="color:#c8cad8; font-size:13px; line-height:1.7;">
+        <b>Dataset:</b> Diabetes 130-US Hospitals<br>
+        <b>Records:</b> 101,766 patients<br>
+        <b>Model:</b> XGBoost<br>
+        <b>Explainability:</b> SHAP
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # ── LOAD ─────────────────────────────────────────────────────
 try:
@@ -215,9 +203,25 @@ rate_30 = df["Readmitted30"].mean() * 100
 #  PAGE 1 — OVERVIEW
 # ══════════════════════════════════════════════════════════════
 if page == "🏠 Overview":
-    st.markdown("# 🏥 Hospital Readmission Analytics Dashboard")
-    st.markdown("*Predicting 30-day readmissions with Explainable AI — 101,766 patient records*")
-    st.markdown("---")
+    st.markdown("""
+<div style="
+    background: linear-gradient(135deg, #1a1d27 0%, #111827 50%, #2b1115 100%);
+    padding: 28px;
+    border-radius: 18px;
+    border: 1px solid #2e3148;
+    margin-bottom: 22px;
+">
+    <h1 style="color:#ffffff; margin:0; font-size:42px;">
+        🏥 Hospital Readmission Intelligence
+    </h1>
+    <p style="color:#c8cad8; font-size:18px; margin-top:10px;">
+        AI-powered 30-day readmission risk prediction, explainability, and ROI analytics
+    </p>
+    <p style="color:#888aaa; font-size:14px;">
+        Built with Streamlit · XGBoost · SHAP · Plotly · Healthcare Analytics
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
     total      = len(df)
     readmit    = df["Readmitted30"].sum()
@@ -225,67 +229,161 @@ if page == "🏠 Overview":
     cost_total = readmit * 15000
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("🏥 Total Patients",         f"{total:,}")
-    c2.metric("🔴 30-Day Readmission Rate", f"{rate_30:.1f}%")
-    c3.metric("📋 Readmissions",           f"{readmit:,}")
-    c4.metric("💰 Est. Annual Cost",        f"${cost_total/1e6:.0f}M")
-    c5.metric("🚨 High Risk Patients",      f"{high_risk:,}")
+    c1.metric("🏥 Total Patients", f"{total:,}")
+    c2.metric("🔴 Readmission Rate", f"{rate_30:.1f}%")
+    c3.metric("📋 Readmissions", f"{readmit:,}")
+    c4.metric("🚨 High Risk Patients", f"{high_risk:,}")
+    c5.metric("💰 Est. Annual Cost", f"${cost_total/1e6:.1f}M")
 
     st.markdown("---")
+
     c1, c2 = st.columns([1, 2])
 
     with c1:
-        sizes  = [(df["readmitted"]=="NO").sum(),
-                  (df["readmitted"]==">30").sum(),
-                  readmit]
-        labels = ["Not Readmitted",">30 Days","<30 Days (Target)"]
-        fig = px.pie(values=sizes, names=labels,
-                     color_discrete_sequence=[SAFE, AMBER, ACCENT],
-                     hole=0.5, title="Readmission Overview")
-        fig.update_layout(paper_bgcolor="#0f1117", font_color="#e0e2f0",
-                          margin=dict(t=40,b=10,l=10,r=10), height=300)
+        sizes = [
+            (df["readmitted"] == "NO").sum(),
+            (df["readmitted"] == ">30").sum(),
+            readmit
+        ]
+        labels = ["Not Readmitted", ">30 Days", "<30 Days Target"]
+
+        fig = px.pie(
+            values=sizes,
+            names=labels,
+            hole=0.55,
+            title="Readmission Overview",
+            color_discrete_sequence=[SAFE, AMBER, ACCENT]
+        )
+
+        fig.update_layout(
+            paper_bgcolor="#0f1117",
+            font_color="#e0e2f0",
+            margin=dict(t=45, b=10, l=10, r=10),
+            height=340
+        )
+
         st.plotly_chart(fig, width="stretch")
 
     with c2:
-        age_stats = (df.groupby("age")["Readmitted30"]
-                       .agg(["sum","count","mean"])
-                       .reset_index())
-        age_stats["rate"] = age_stats["mean"] * 100
-        age_order = ["[0-10)","[10-20)","[20-30)","[30-40)","[40-50)",
-                     "[50-60)","[60-70)","[70-80)","[80-90)","[90-100)"]
-        age_stats["age"] = pd.Categorical(age_stats["age"],
-                                           categories=age_order, ordered=True)
-        age_stats = age_stats.sort_values("age")
+        age_stats = (
+            df.groupby("age")["Readmitted30"]
+            .agg(["sum", "count", "mean"])
+            .reset_index()
+        )
 
-        fig2 = px.bar(age_stats, x="age", y="rate",
-                      text=age_stats["rate"].round(1).astype(str)+"%",
-                      color="rate",
-                      color_continuous_scale=["#4db8a4","#f0a030","#e85d5d"],
-                      title="30-Day Readmission Rate by Age Group")
-        fig2.update_layout(paper_bgcolor="#0f1117", plot_bgcolor="#1a1d27",
-                           font_color="#e0e2f0", coloraxis_showscale=False,
-                           height=300, title_font_size=13)
+        age_order = [
+            "[0-10)", "[10-20)", "[20-30)", "[30-40)", "[40-50)",
+            "[50-60)", "[60-70)", "[70-80)", "[80-90)", "[90-100)"
+        ]
+
+        age_stats["age"] = pd.Categorical(
+            age_stats["age"],
+            categories=age_order,
+            ordered=True
+        )
+        age_stats = age_stats.sort_values("age")
+        age_stats["rate"] = age_stats["mean"] * 100
+
+        fig2 = px.bar(
+            age_stats,
+            x="age",
+            y="rate",
+            text=age_stats["rate"].round(1).astype(str) + "%",
+            color="rate",
+            color_continuous_scale=["#4db8a4", "#f0a030", "#e85d5d"],
+            title="30-Day Readmission Rate by Age Group"
+        )
+
+        fig2.update_layout(
+            paper_bgcolor="#0f1117",
+            plot_bgcolor="#1a1d27",
+            font_color="#e0e2f0",
+            coloraxis_showscale=False,
+            height=340,
+            title_font_size=14
+        )
         fig2.update_traces(textposition="outside")
+
         st.plotly_chart(fig2, width="stretch")
 
     st.markdown("---")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        fig3 = px.histogram(
+            df,
+            x="RiskScore",
+            nbins=35,
+            title="Patient Risk Score Distribution",
+            color_discrete_sequence=[ACCENT]
+        )
+        fig3.add_vline(
+            x=60,
+            line_dash="dash",
+            line_color="yellow",
+            annotation_text="High Risk Threshold"
+        )
+        fig3.update_layout(
+            paper_bgcolor="#0f1117",
+            plot_bgcolor="#1a1d27",
+            font_color="#e0e2f0",
+            height=350
+        )
+        st.plotly_chart(fig3, width="stretch")
+
+    with c2:
+        diag_stats = (
+            df.groupby("DiagCategory")["Readmitted30"]
+            .agg(["count", "mean"])
+            .reset_index()
+        )
+        diag_stats = diag_stats[diag_stats["count"] > 200]
+        diag_stats["rate"] = diag_stats["mean"] * 100
+        diag_stats = diag_stats.sort_values("rate", ascending=True)
+
+        fig4 = px.bar(
+            diag_stats,
+            x="rate",
+            y="DiagCategory",
+            orientation="h",
+            text=diag_stats["rate"].round(1).astype(str) + "%",
+            color="rate",
+            color_continuous_scale=["#4db8a4", "#e85d5d"],
+            title="Readmission Rate by Diagnosis Category"
+        )
+
+        fig4.update_layout(
+            paper_bgcolor="#0f1117",
+            plot_bgcolor="#1a1d27",
+            font_color="#e0e2f0",
+            coloraxis_showscale=False,
+            height=350
+        )
+        fig4.update_traces(textposition="outside")
+        st.plotly_chart(fig4, width="stretch")
+
+    st.markdown("---")
+
     i1, i2, i3 = st.columns(3)
+
     with i1:
         st.markdown("""<div class="insight-box">
-        🔴 <b>Previous admissions = strongest signal</b><br>
-        5+ prior visits → 2–3× the average readmission rate
+        🔴 <b>Prior admissions are the strongest signal</b><br>
+        Patients with repeated inpatient visits show much higher readmission risk.
         </div>""", unsafe_allow_html=True)
+
     with i2:
         st.markdown("""<div class="insight-box amber">
-        🟠 <b>Elderly + Multi-Admit + Long Stay</b><br>
-        High-risk segment: ~22% rate vs 11.2% average
+        🟠 <b>Elderly + long stay = high-risk segment</b><br>
+        These patients should receive discharge planning and follow-up support.
         </div>""", unsafe_allow_html=True)
+
     with i3:
         st.markdown(f"""<div class="insight-box teal">
         🟢 <b>Model AUC: {auc_score:.3f}</b><br>
-        Consistent with published academic benchmarks for this dataset
+        XGBoost ranks high-risk patients above low-risk patients effectively.
         </div>""", unsafe_allow_html=True)
-
 
 # ══════════════════════════════════════════════════════════════
 #  PAGE 2 — EDA
@@ -431,6 +529,25 @@ elif page == "🤖 ML Model":
     st.markdown("*XGBoost + SHAP Explainable AI*")
     st.markdown("---")
 
+    st.markdown("""
+<style>
+div[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #1a1d27, #111827);
+    border: 1px solid #2e3148;
+    padding: 18px;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+}
+div[data-testid="stMetricLabel"] {
+    color: #a5a8bd;
+}
+div[data-testid="stMetricValue"] {
+    color: #ffffff;
+    font-size: 28px;
+}
+</style>
+""", unsafe_allow_html=True)
+    
     c1, c2, c3 = st.columns(3)
     c1.metric("🏆 Best Model",   "XGBoost")
     c2.metric("📈 ROC-AUC",      f"{auc_score:.4f}")
