@@ -13,6 +13,7 @@ import plotly.graph_objects as go
 import shap
 import warnings
 from pathlib import Path
+
 warnings.filterwarnings("ignore")
 
 from sklearn.model_selection import train_test_split
@@ -21,6 +22,7 @@ from sklearn.metrics         import roc_auc_score, roc_curve, confusion_matrix
 from xgboost                 import XGBClassifier
 from imblearn.over_sampling  import SMOTE
 
+
 # ── PAGE CONFIG ──────────────────────────────────────────────
 st.set_page_config(
     page_title="Hospital Readmission Analytics",
@@ -28,36 +30,30 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+# Gemini AI is imported safely. Do not call the API until the user asks a question.
+from google import genai
 
+GEMINI_API_KEY = "AIzaSyArchjz-DHgGKiqwRdFmHs7SB3pga652G0"
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 st.markdown("""
 <style>
-    .main { background-color: #0f1117; }
-    .block-container { padding-top: 1rem; }
-    .insight-box {
-        background: #1a1d27;
-        border-left: 4px solid #e85d5d;
-        border-radius: 8px;
-        padding: 14px 18px;
-        margin: 8px 0;
-        font-size: 0.9rem;
-        color: #c8cad8;
-    }
-    .insight-box.teal  { border-left-color: #4db8a4; }
-    .insight-box.amber { border-left-color: #f0a030; }
-    .section-title {
-        font-size: 1.3rem; font-weight: 700;
-        color: #e0e2f0; margin: 24px 0 12px 0;
-        padding-bottom: 6px; border-bottom: 1px solid #2e3148;
-    }
-    div[data-testid="stSidebar"] {
-        background-color: #12141f;
-        border-right: 1px solid #2e3148;
-    }
-    div[data-testid="metric-container"] {
-        background: #1a1d27;
-        border: 1px solid #2e3148;
-        border-radius: 10px; padding: 12px;
-    }
+    :root { --bg:#080d14; --panel:rgba(22,28,40,.72); --border:rgba(255,255,255,.11); --text:#f6f8ff; --muted:#a9b0c5; --accent:#e85d5d; --safe:#4db8a4; --amber:#f0a030; }
+    html, body, .stApp { background: radial-gradient(circle at top left, rgba(232,93,93,.18), transparent 28%), radial-gradient(circle at top right, rgba(77,184,164,.10), transparent 30%), linear-gradient(135deg,#080d14 0%,#101827 48%,#070b12 100%) !important; color: var(--text); }
+    .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1380px; }
+    div[data-testid="stSidebar"] { background: rgba(20,22,34,.76) !important; backdrop-filter: blur(18px); border-right: 1px solid var(--border); }
+    div[data-testid="stSidebar"] * { color: #f4f6ff; }
+    .metric-card, div[data-testid="metric-container"] { background: var(--panel) !important; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid var(--border) !important; border-radius: 22px !important; padding: 22px !important; box-shadow: 0 18px 45px rgba(0,0,0,.32); transition: .25s ease; }
+    .metric-card:hover { transform: translateY(-3px); box-shadow: 0 22px 55px rgba(232,93,93,.18); }
+    .metric-card h1, .metric-card h2, .metric-card h3, .metric-card h4 { color: #fff !important; margin-top: 0; }
+    .insight-box { background: rgba(22,28,40,.76); backdrop-filter: blur(14px); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 16px; padding: 16px 18px; margin: 10px 0; font-size: .94rem; color: #d7dae8; box-shadow: 0 14px 35px rgba(0,0,0,.22); }
+    .insight-box.teal { border-left-color: var(--safe); } .insight-box.amber { border-left-color: var(--amber); }
+    .section-title { font-size: 1.35rem; font-weight: 800; color: #fff; margin: 26px 0 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.12); }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { background: rgba(255,255,255,.05); border: 1px solid var(--border); border-radius: 14px; color: #dce1ef; padding: 10px 16px; }
+    .stButton > button, .stDownloadButton > button { border-radius: 16px !important; border: 1px solid rgba(255,255,255,.12) !important; background: linear-gradient(135deg,#e85d5d,#a73d56) !important; color: white !important; font-weight: 800 !important; box-shadow: 0 14px 30px rgba(232,93,93,.22); }
+    input, textarea { border-radius: 14px !important; }
+    div[data-testid="stDataFrame"] { border-radius: 18px; overflow: hidden; border: 1px solid var(--border); }
+    code, pre { white-space: pre-wrap !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -142,6 +138,15 @@ def align_features_for_model(X, feature_names):
 
     return X[feature_names]
 
+def glass_panel(title, body, icon="🧠"):
+    body = str(body).strip()
+    st.markdown(f"""
+<div class="metric-card" style="margin-top:20px; padding:24px; background:linear-gradient(135deg,rgba(26,29,39,.86),rgba(17,24,39,.86));">
+    <h3 style="color:white; margin-bottom:14px;">{icon} {title}</h3>
+    <div style="color:#d7dae5; line-height:1.9; font-size:15px; white-space:pre-line;">{body}</div>
+</div>
+""", unsafe_allow_html=True)
+
 # ── SIDEBAR ───────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
@@ -155,13 +160,14 @@ with st.sidebar:
     st.markdown("---")
 
     page = st.radio("Navigate", [
-        "🏠 Overview",
-        "📊 EDA Analysis",
-        "🤖 ML Model",
-        "🚨 Patient Risk",
-        "🧑‍⚕️ Predict Patient",
-        "💰 ROI Calculator",
-    ], label_visibility="collapsed")
+    "🏠 Overview",
+    "📊 EDA Analysis",
+    "🤖 ML Model",
+    "🚨 Patient Risk",
+    "🧑‍⚕️ Predict Patient",
+    "💬 AI Chatbot",
+    "💰 ROI Calculator",
+], label_visibility="collapsed")
 
     st.markdown("---")
 
@@ -229,11 +235,46 @@ if page == "🏠 Overview":
     cost_total = readmit * 15000
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("🏥 Total Patients", f"{total:,}")
-    c2.metric("🔴 Readmission Rate", f"{rate_30:.1f}%")
-    c3.metric("📋 Readmissions", f"{readmit:,}")
-    c4.metric("🚨 High Risk Patients", f"{high_risk:,}")
-    c5.metric("💰 Est. Annual Cost", f"${cost_total/1e6:.1f}M")
+
+    with c1:
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4>🏥 Total Patients</h4>
+            <h1>{total:,}</h1>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c2:
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4>🔴 Readmission Rate</h4>
+            <h1>{rate_30:.1f}%</h1>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c3:
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4>📋 Readmissions</h4>
+            <h1>{readmit:,}</h1>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c4:
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4>🚨 High Risk Patients</h4>
+            <h1>{high_risk:,}</h1>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c5:
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4>💰 Est. Annual Cost</h4>
+            <h1>${cost_total/1e6:.1f}M</h1>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -810,15 +851,55 @@ elif page == "🧑‍⚕️ Predict Patient":
         risk_prob = model.predict_proba(patient_X)[0, 1]
         risk_score = round(risk_prob * 100, 1)
 
-        if risk_score >= 60:
-            risk_label = "🔴 High Risk"
-            action = "Assign case manager, schedule 7-day follow-up, medication review."
+        if risk_score >= 75:
+            risk_label = "🔴 Critical Risk"
+
+            ai_message = """
+            🚨 AI Clinical Recommendation
+
+            • Immediate care coordination required
+            • Assign dedicated case manager
+            • Schedule follow-up within 72 hours
+            • Medication reconciliation recommended
+            • Monitor for chronic disease complications
+            • High probability of near-term readmission
+            """
+
+        elif risk_score >= 60:
+            risk_label = "🟠 High Risk"
+
+            ai_message = """
+            🤖 AI Clinical Recommendation
+
+            • Schedule follow-up within 7 days
+            • Provide discharge counseling
+            • Review medication adherence
+            • Monitor comorbid conditions
+            • Recommend remote patient monitoring
+            """
+
         elif risk_score >= 30:
-            risk_label = "🟠 Medium Risk"
-            action = "Monitor closely, provide discharge instructions, follow-up call."
+            risk_label = "🟡 Medium Risk"
+
+            ai_message = """
+            🤖 AI Clinical Recommendation
+
+            • Standard follow-up recommended
+            • Encourage medication compliance
+            • Monitor symptoms carefully
+            • Provide lifestyle guidance
+            """
+
         else:
             risk_label = "🟢 Low Risk"
-            action = "Standard discharge process."
+
+            ai_message = """
+            ✅ AI Clinical Recommendation
+
+            • Standard discharge process
+            • Routine outpatient monitoring
+            • Low short-term readmission probability
+            """
 
         st.markdown("---")
         c1, c2, c3 = st.columns(3)
@@ -826,13 +907,86 @@ elif page == "🧑‍⚕️ Predict Patient":
         c2.metric("Risk Category", risk_label)
         c3.metric("Model Used", "XGBoost")
 
+        glass_panel("AI Clinical Assistant", ai_message, "🧠")
+
+        st.markdown("---")
+
+        reasons = []
+
+        if number_inpatient >= 3:
+            reasons.append("• Multiple prior inpatient admissions")
+
+        if num_medications >= 20:
+            reasons.append("• High medication count")
+
+        if time_in_hospital >= 7:
+            reasons.append("• Long hospital stay duration")
+
+        if "70" in age or "80" in age or "90" in age:
+            reasons.append("• Elderly age group")
+
+        if number_emergency >= 2:
+            reasons.append("• Frequent emergency visits")
+
+        if diag_choice in ["Circulatory / Heart", "Respiratory"]:
+            reasons.append("• High-risk diagnosis category")
+
+        if len(reasons) == 0:
+            reasons.append("• No major high-risk drivers detected")
+
+        explanation = "\n".join(reasons)
+
+        glass_panel("Explainable AI Insights", explanation, "🧠")
+
+
+# ══════════════════════════════════════════════════════════════
+#  PAGE — AI CHATBOT
+# ══════════════════════════════════════════════════════════════
+elif page == "💬 AI Chatbot":
+
+    st.markdown("# 💬 AI Healthcare Assistant")
+    st.markdown("*Ask questions about patient risk and healthcare analytics*")
+    st.markdown("---")
+
+    user_q = st.text_input(
+        "Ask something...",
+        placeholder="Why are elderly patients high risk?"
+    )
+
+    if user_q:
+        with st.spinner("AI is thinking..."):
+            prompt = f"""
+You are a professional healthcare analytics assistant.
+
+Context:
+- Hospital readmission prediction dashboard
+- Dataset: Diabetes 130-US Hospitals
+- ML model: XGBoost
+- Explainability: SHAP
+- ROC-AUC: {auc_score:.3f}
+- Hospital 30-day readmission rate: {rate_30:.1f}%
+
+User Question:
+{user_q}
+
+Answer clearly in simple, clinical-business language. Keep it concise.
+"""
+            try:
+                response = gemini_client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=prompt
+                )
+                ai_reply = response.text
+            except Exception as e:
+                ai_reply = f"AI response failed: {e}"
+
         st.markdown(f"""
-        <div class="insight-box">
-        <b>Recommended Clinical Action:</b><br>
-        {action}
+        <div class="metric-card" style="margin-top:20px; padding:24px; background:linear-gradient(135deg,rgba(26,29,39,.86),rgba(17,24,39,.86));">
+            <h3 style="color:white;">🤖 Gemini Clinical Assistant</h3>
+            <div style="color:#d7dae5; line-height:1.9; font-size:15px; white-space:pre-line;">{ai_reply}</div>
         </div>
         """, unsafe_allow_html=True)
-
+        
 # ══════════════════════════════════════════════════════════════
 #  PAGE 6 — ROI CALCULATOR
 # ══════════════════════════════════════════════════════════════
