@@ -7,3 +7,4 @@ xgboost
 shap
 imbalanced-learn
 matplotlib
+google-genai
